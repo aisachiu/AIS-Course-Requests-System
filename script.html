@@ -1,0 +1,398 @@
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+<script>
+
+  $(function() {
+    $( ".draggable" ).draggable();
+  });
+
+
+//Angular
+var app = angular.module('myApp', []);
+
+
+app.service("myService", ['$rootScope', function($rootScope){
+  var g = {data: 'gold', showdata: true};
+  function showData(data){  
+    g.data = data;
+    $rootScope.$broadcast('hereNow', g);
+  }
+  
+  //google.script.run.withSuccessHandler(showData).loadGInfo();
+  return g;
+}]);
+
+
+app.controller('myCtrl', function($scope, myService, $timeout, $q){
+    $scope.data = {} ;
+    $scope.dataFetching = true; // use this to be true while fetching data (disable inputs, etc)
+    $scope.myFilter = "";
+    $scope.resetRecFilter = function(){
+      $scope.recFilter = {student: {studentID: "",
+                            firstname: "",
+                            lastname: "",
+                            hrm: "",
+                            index: ""},
+                            /*current: {course: "", courseCode: "", teacher: "", dept: "", year: ""},*/
+                            /*rec: {course: "", teacher: "", dept: ""},*/
+                            choices: {choice: ""}};
+    };
+    $scope.recViewCols = {showCurrent: true, showRecs: true, showChoices: true};
+    
+    $scope.reloadData = function() { // fetches and refreshes the data from server
+      $scope.reloading = true;
+      console.log("reloading!");
+      $scope.dataFetching = true;
+      google.script.run.withSuccessHandler(showData).loadGInfo();
+    };
+    
+
+    $scope.sendThis = function(course){
+      var x = $scope.data;
+      console.log(course);
+      google.script.run.withSuccessHandler(updateData).postData(course.request, course.requestID, x.studentInfo, course.courseCode, course.department);
+    }
+    
+    $scope.thisS = "";
+    $scope.gotoSs = function(index){
+      var x = $scope.data;
+      //var thisS = $scope.thisS;
+      $scope.thisS = x.students[index];
+      $scope.thisSindex = index;
+      $scope.showCS = false;
+      $scope.showSR = true;
+      $scope.showRec = false;
+      console.log($scope);
+    };
+    
+    $scope.screen1 = function(){
+      $scope.showCS = true; //show choice summary
+      $scope.showSR = false;
+      $scope.showRec = false;
+    };
+    
+    $scope.screen2 = function(){
+      $scope.showCS = false; //show choice summary
+      $scope.showSR = false;
+      $scope.showRec = true;
+      
+    }
+    
+    $scope.screen1();
+    $scope.resetRecFilter();
+    
+    $scope.$on('hereNow', function(event, data){
+      $scope.data = data.data;
+    });
+    
+    function showData(data){
+      console.log(data);
+      $scope.data = data;
+      try{
+        var myData = $scope.data;
+
+        myData.creditTable = getCreditsData(myData, myData.studentInfo[0][0]);
+        myData.courseCat = createCourseCat(myData, myData.studentInfo[0][0]);
+         
+        } catch(e) {
+          $scope.data.error = e;
+          console.log(e);
+        }//*/
+        $scope.dataFetching = false; // indicate that data is loaded.
+        $scope.$digest();
+                console.log(myData);
+    }
+    
+    
+    
+    function updateData(r){
+      //var i = r.index;
+      //var j = $scope;
+      
+      $scope.$digest();
+      console.log(r);      
+    }
+    
+    google.script.run.withSuccessHandler(showData).loadGInfo();
+    
+    $scope.toggleApprove = function(student, idx){
+      console.log(idx);
+      var postData = {studentID: student.studentInfo[0], approval: student.myChoices[4], HRM: student.studentInfo[2], index: idx };
+      $scope.dataFetching = true;
+      google.script.run.withSuccessHandler(updateData).postApproval(postData);
+    };
+    
+    $scope.togglePApprove = function(student, idx){
+      var postData = {studentID: student.studentInfo[0], approval: student.myChoices[16], HRM: student.studentInfo[2], index: idx, choices: student.myChoices};
+      $scope.dataFetching = true;
+      google.script.run.withSuccessHandler(updateData).postPApproval(postData);
+    };
+})
+
+//Function to create the course catalogue object - which will hold all courses and whether chosen or not.
+function createCourseCat(data, sID){
+  data.courseCat = {};
+  //loop through courses in courseDefn
+  
+}
+
+
+//Function to update and draw the Credits table
+function getCreditsData(data, sID){
+  
+   var reqCol = data.studentInfo[0][6]+1;
+   var creditsData = [];
+   
+  //Cycle through departments, showing courses and total credits and any recommendations
+  for (var dept = 1; dept < data.GradReqs.length; dept++){ 
+    
+    var thisDeptCreds = getRowsMatching(data.transcript,5,data.GradReqs[dept][0]);
+    console.log(thisDeptCreds);
+    var thisDeptRecs = getRowsMatching(data.recData,4,data.GradReqs[dept][0]);
+    //Reset Credits counter (for summing credits in this department)
+    var thisDeptTotal = 0; 
+    var myCourses = [];
+    var myChoiceData = [];
+    
+    //Get credits in this department
+    if (typeof thisDeptCreds[0] !== 'undefined') { 
+      //Sort the items by Year completed
+      thisDeptCreds.sort(function(a, b){ 
+        var x = a[7];
+        var y = b[7];
+        return (x < y ? -1 : (x > y ? 1 : 0));});      
+      
+      for (var myCreds = 0; myCreds < thisDeptCreds.length; myCreds++){
+        thisDeptTotal += thisDeptCreds[myCreds][8];
+        myCourses.push([thisDeptCreds[myCreds][9],thisDeptCreds[myCreds][7],thisDeptCreds[myCreds][11]]);
+      }
+    }
+    
+    //Get choices into department categories
+    //Go through build choices. If choice is in this category, add it to the column
+    var myYear = data.studentInfo[0][2].substring(0,5);
+
+    var thisDeptChoices = getRowsMatching2(data.courseDefn, 4, data.GradReqs[dept][0]);
+        //var thisDeptChoices = ArrayLib.filterByValue(data.courseDefn, 4, data.GradReqs[dept][0]);
+    console.log([data.courseDefn, data.GradReqs[dept][0], data.GradReqs[dept][1], thisDeptChoices] );
+    for (var ch = 0; ch < thisDeptChoices.length; ch++) { //go through each choice see if it is in 4-year plan at this grade level.
+      if(thisDeptChoices[ch][data.fourYearPlan[myYear].col] > 0){  //If the course is indicated a choice for this grade level ( >0)
+        myChoiceData.push(data.choiceData[thisDeptChoices[ch][1]]);                                     
+       }
+      }
+      
+   
+    //Print department total credits earned and total needed(col 3).
+    //console.log([data.GradReqs[dept][1], thisDeptTotal, data.GradReqs[dept][reqCol], myCourses, choiceData, myRecCourses]);
+    var percentC = (thisDeptTotal / data.GradReqs[dept][reqCol] * 100)+"%";
+    creditsData.push([data.GradReqs[dept][1], thisDeptTotal, data.GradReqs[dept][reqCol], myCourses, myChoiceData, percentC]); 
+  }
+  return creditsData; 
+}
+
+
+
+
+//Function to update and draw the Survey table
+function getSurveyData(data, sID){
+  
+  var reqCol = data.students[sID].studentInfo[6]+1;
+   var surveyData = [];
+   
+  //Put credits course codes (first 5 letters) into an array
+  var myCreds = new Array();
+  for (var cRow = 0; cRow < data.students[sID].transcripts.length; cRow++)
+    myCreds[cRow] = [String(data.students[sID].transcripts[cRow][9]).substring(0,5), data.students[sID].transcripts[cRow][9]] ;
+    
+  for (var c = 0; c < data.possibleChoices.length; c++){ //For each block (possibleChoices group)
+  
+  try {
+    var myChoiceForThis = data.students[sID].myChoices[c+5];
+    var myDraftForThis = data.students[sID].draftChoices[c+5];
+      //vars before looping within options
+    var thisLevel = 1; //for course levels
+    var options = [];
+
+    for  (var i = 1; i< data.possibleChoices[c].length; i++){ //For each choice within that block
+      var courseLevel = String(data.possibleChoices[c][i]).substring(3,4); //course level
+      var sectionCode = data.possibleChoices[c][i][0];
+      var courseCode = String(sectionCode).substring(0,5); //course code
+
+      //get enrolled numbers and quota
+      var enrolNum = "";
+      var quotaNum = "";
+      for (var j=0; j < data.courseCounts.length; j++){ 
+        if (data.courseCounts[j][0] == sectionCode) {
+          enrolNum = data.courseCounts[j][1];
+          quotaNum = data.courseCounts[j][2];
+        }
+      }
+
+       //mark that this is a draft if chosen as draft
+      var isDraft = false;
+      if (myDraftForThis == data.possibleChoices[c][i]) isDraft = true; 
+      //mark that this choice is completed if found in transcripts
+      var isDone = false;
+      if(findThisInArray(myCreds, courseCode, 0)) isDone = true; 
+      //mark whether this choice is recommended
+      var isRec = false;
+      if (findThisInArray(data.students[sID].recData, courseCode, 3)) {isRec = true; }
+      //Get department
+      //Insert get department here
+      // var dept = //find from data courseDef
+      // end insert
+      
+      options.push({sectionCode: sectionCode,
+                  courseCode: courseCode, 
+                 courseLevel: courseLevel, 
+                 isDraft: isDraft, 
+                 isRec: isRec, 
+                 isDone: isDone, 
+                 enrolNum: enrolNum,
+                 quotaNum: quotaNum});    
+    }//each option within block
+    surveyData.push({block: c+1, myChoice: myChoiceForThis, draftChoice: myDraftForThis, options: options});
+    } catch(e) {
+     console.log(e);
+    }
+  }//each block
+
+  return surveyData;
+
+}
+
+//--
+// function createRecViews(scope) 
+// Create a summary view object for Recommendations based views.
+//--
+function createRecViews(scope) {
+
+  var students = scope.data.students;
+  console.log(students);
+  var recView = [];
+  
+  for (var s=0; s < students.length; s++){ //for each student
+    var thisCurrent = [];
+    var thisRec = [];
+    var thisChoices = [];
+    for (var t = 0; t < students[s].transcripts.length; t++){ //for each of the students' transcript entries
+      var thisTranscript = students[s].transcripts[t];
+      //if(thisTranscript[7] === "Current"){ //if it is a current class, write it to object
+        var course = thisTranscript[9];
+        var courseCode = String(course).substr(0,5);
+        var teacher = thisTranscript[10];
+        var dept = thisTranscript[5];
+        var year = thisTranscript[7];
+        thisCurrent.push({course: course, courseCode: courseCode, teacher: teacher, dept: dept, year: year});
+      //}
+    }
+    for (var r = 0; r < students[s].recData.length; r++){ //for each of student's recs
+       thisRec.push({course: students[s].recData[r][3], teacher: students[s].recData[r][5], dept: students[s].recData[r][4]});
+    }
+    
+    for (var m = 5; m <= 11; m++){ //for each of student's choices
+      thisChoices.push({choice: students[s].myChoices[m]});
+    }
+    recView.push({student: {studentID: students[s].studentInfo[0],
+                            firstname: students[s].studentInfo[4],
+                            lastname: students[s].studentInfo[3],
+                            hrm: students[s].studentInfo[2],
+                            index: s},
+                            current: thisCurrent,
+                            rec: thisRec,
+                            choices: thisChoices});
+  }
+  return recView;
+}
+
+   
+
+//-----
+// getExistingRow - returns the row that contains the data matching the criteria, or returns the next row in the spreadsheet.
+//
+//-----
+function getExistingRow(myList,checkCol,checkCriteria){
+  var myRow = 0;
+  while (myRow < myList.length){
+    if (myList[myRow][checkCol] == checkCriteria) {
+      return myRow;
+    }
+    myRow++;
+  } 
+  return myRow;
+}
+
+
+
+//-----
+//   getRowsMatching takes a data list and searches the sortIndex for all values that match valueToFind, returning the rows that match this value
+//-----
+
+function getRowsMatching(myDataList, sortIndex, valueToFind){
+  
+  var foundList = new Array();
+  
+  myDataList.sort(function(a, b){ //Sort the items by studentID
+    var x = a[sortIndex];
+    var y = b[sortIndex];
+    return (x < y ? -1 : (x > y ? 1 : 0));});
+  
+  var cdr = 0;
+  var found = false; 
+  
+  while ( cdr < myDataList.length){
+    if (myDataList[cdr][sortIndex] == valueToFind) {
+      found=true;
+      foundList.push(myDataList[cdr])
+    }
+    else if (found){
+      return foundList;
+    }
+    cdr++;
+  }
+
+  return foundList;
+  
+}
+
+function getRowsMatching2(myDataList, sortIndex, valueToFind){
+  
+  var foundList = new Array();
+  
+/*  myDataList.sort(function(a, b){ //Sort the items by studentID
+    var x = a[sortIndex];
+    var y = b[sortIndex];
+    return (x < y ? -1 : (x > y ? 1 : 0));});
+  */
+  var cdr = 0;
+  var found = false; 
+  console.log(myDataList);
+  while ( cdr < myDataList.length){
+    console.log([cdr, myDataList[cdr][sortIndex] == valueToFind,myDataList[cdr][sortIndex],valueToFind]);
+    if (myDataList[cdr][sortIndex] == valueToFind) {
+      found=true;
+      foundList.push(myDataList[cdr])
+    }
+    /*else if (found){
+      return foundList;
+    }*/
+    cdr++;
+  }
+
+  return foundList;
+  
+}
+
+//Returns True if Value is found in col column of myArray 2D array
+function findThisInArray(myArray, value, col){
+  for( var i = 0; i < myArray.length; i++ ) {
+      if(myArray[i][col] == value ) {
+          return true;
+          break;
+      }
+    
+  }
+  return false;
+}
+  </script>

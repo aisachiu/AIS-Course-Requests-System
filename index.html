@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+    <?!= include('css'); ?> 
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.2/angular.min.js"></script>
+  </head>
+  <body>
+
+<div class="container" ng-app="myApp" ng-controller="myCtrl">
+<div class="jumbotron"><h1><?= appTitle?></h1><small><span id="StudentName">Logged in as <?= thisUser?></span> </small> <span>{{data.studentInfo[0][3]}} {{data.studentInfo[0][4]}}</span></div>
+<div id="bannerArea" ng-show="dataFetching"><div class="alert alert-info" >Loading...</div></div>
+<!--<button ng-click="reloadData()" ng-disabled="reloading">Refresh Data</button>-->
+<div id="myTop"  >
+  <div id="errorBanner" class="bg-danger" ng-show="data.error.status">{{data.error.msg}}</div>
+  <div id="choiceSummary" ng-show="showCS"><h3>Current Choice Summary</h3>
+           <table class="table" id="creditsTbl" style="margin: 0 auto;" >
+           <tr>
+             <td>Department</td>
+             <td>Course</td>
+             <td>Choices for next year</td>
+
+           </tr>
+           <tr ng-repeat="x in data.creditTable">
+             <td>{{x[0]}} 
+               <div class="progress">
+                  <div class="progress-bar" ng-class=" (x[1] >= x[2]) ? 'progress-bar-success' : 'progress-bar-warning'"role="progressbar" aria-valuenow="{{x[1]}}" aria-valuemin="0" aria-valuemax="{{x[2]}}" style="width:{{x[5]}}" >
+                    {{x[1]}} / {{x[2]}}
+                  </div>
+                </div></td>
+             <td><div ng-repeat="credit in x[3]"><span class="badge" ng-class="{'alert-warning': credit[1] === 'Current', 'alert-success': credit[1] !== 'Current'}" >{{credit[0]}} ({{credit[1]}}):  {{parseint(credit[2])}}</span><br /></div></td>
+             <td><div ng-repeat="choice in x[4]">
+               <p ng-show="{{!choice.completed}}" ng-class="choice.recommended ? 'bg-info' : ''"><input type="checkbox" ng-click="sendThis(choice);" ng-model="choice.request">{{choice.courseName}} - ({{choice.courseCode}})<a href="https://sites.google.com/a/ais.edu.hk/high-school-course-selection-and-recommendations/courses/{{choice[1].substring(0,5)}}" target="_blank"><span class="glyphicon glyphicon-info-sign"></span></a></p></div></td>    
+           </tr>                
+         </table>
+      </div><!--choiceSummary-->
+ 
+  <div id="Choices" ng-show="showSR">
+    
+  
+   </div><!--choices-->
+   <div id="recommendationView" ng-show="showRec">
+
+   </div>
+</div><!--myTop-->
+</div><!--container-->
+<?!= include("script"); ?>
+
+</body>
+</html>
+
+
